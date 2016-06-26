@@ -1,0 +1,22 @@
+#! /usr/bin/python
+# solar - Opens solar show or movie.
+
+import requests, sys, webbrowser, bs4, re
+
+print 'Finding...'
+if sys.argv[1] == 'show':
+	res = requests.get('https://www.solarmovie.ph/tv/search/' + '+'.join(sys.argv[2:]))
+elif sys.argv[1] == 'movie':
+	res = requests.get('http://google.com/search?q=' + ' '.join(sys.argv[2:]))
+res.raise_for_status()
+
+# Retrieve top search result links.
+soup = bs4.BeautifulSoup(res.text, 'lxml')
+
+# Open a browser tab for each result.
+linkElems = soup.select('.name a')
+for match in linkElems:
+	link = str(match).lower()
+	if link.find(' '.join(sys.argv[2:])) != -1:
+		webbrowser.open_new_tab('https://solarmovie.ph' + match.get('href'))
+		break

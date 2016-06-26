@@ -1,0 +1,26 @@
+#! /usr/bin/python
+# stack.py - Opens several SO-specific search results.
+
+import requests, sys, webbrowser, bs4
+
+print 'Googling...'	# Display text while downloading the Google page
+res = requests.get('http://google.com/search?q=' + ' '.join(sys.argv[1:]))
+res.raise_for_status()
+
+# Retrieve top search result links.
+# Try removing 'lxml' if fails on different system
+soup = bs4.BeautifulSoup(res.text, 'lxml') 
+
+# Open a browser tab for each result.
+linkElems = soup.select('.r a')
+
+maxLinks = min(10, len(linkElems))
+numOpen = 3
+count = 0
+
+for i in range(maxLinks):
+	if str(linkElems[i]).find('stackoverflow') != -1:
+		webbrowser.open('http://google.com' + linkElems[i].get('href'))
+		count += 1
+		if count == numOpen:
+			break
