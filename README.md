@@ -30,3 +30,8 @@ List of attributes common to all sites:
 	- A way to close that website (or specific tabs)
 
 At the very least, I'll have a system which opens tabs for (or downloads) the thing I was looking for in the first place -- assuming I make the program accurate enough -- or I just have to look it up myself. Either way, the process would be autmoated substantially.
+
+
+
+
+After abstracting the stack and google scripts to a Website class, I think I'll be able to add wiki and ubuntu forums in no time. Solar movie is going to be a bit more challenging, and I'd like to do netflix too (will have to use Chrome).
