@@ -1,0 +1,81 @@
+#! /usr/bin/python
+
+import sys, requests, bs4, webbrowser
+from abc import ABCMeta, abstractmethod
+
+class Website(object):
+	'Contains all components necessary to access a variety of websites'
+	
+	__metaclass__ = ABCMeta
+
+	baseSearchURL = ''
+	defaultNum = 0
+	delim = ''
+	selectString = ''
+	baseLinkURL = ''
+	linkContainer = ''
+	
+	def __init__(self, rawInput):
+		if sys.argv[1].isdigit():
+			self.num = int(sys.argv[1])
+			self.search = self.delim.join(sys.argv[2:])
+		else: 
+			self.num = self.defaultNum
+			self.search = self.delim.join(sys.argv[1:])
+
+	def __request_page(self):
+		print "Searching..."
+		self.res = requests.get(self.baseSearchURL + self.search)
+		self.res.raise_for_status()
+
+	def __parse_html(self):
+		# Try removing 'lxml' if fails on different system
+		self.html = bs4.BeautifulSoup(self.res.text, 'lxml')
+		self.linkElems = self.html.select(self.selectString)
+
+	def __open_link(self):
+		self.numOpen = min(self.num, len(self.linkElems))
+		for i in range(self.numOpen):
+			webbrowser.open_new_tab(self.baseLinkURL + 
+						self.linkElems[i].get(self.linkContainer))
+
+	def search_web(self):
+		self.__request_page()
+		self.__parse_html()
+		self.__open_link()
+
+	@abstractmethod
+	def site_name(self):
+		pass
+
+#----------------------------------------------------------------------
+
+class Google(Website):
+
+	baseSearchURL = 'http://google.com/search?q='
+	defaultNum = 1
+	delim = '+'
+	selectString = '.r a'
+	baseLinkURL = 'http://google.com'
+	linkContainer = 'href'
+	
+	def site_name(self):
+		return 'google' 
+
+
+class Stack(Google):
+
+	baseSearchURL = 'http://google.com/search?q=insite:stackoverflow.com'
+
+	def site_name(self):
+		return 'stackoverflow'
+
+
+class Wiki(Google):
+
+	baseSearchURL = 'http://google.com/search?q=insite:wikipedia.org'
+
+	def site_name(self):
+		return 'wikipedia'
+
+	

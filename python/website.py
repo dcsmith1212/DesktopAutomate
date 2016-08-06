@@ -19,7 +19,7 @@ class Website(object):
 		if sys.argv[1].isdigit():
 			self.num = int(sys.argv[1])
 			self.search = self.delim.join(sys.argv[2:])
-		else: 
+		else:
 			self.num = self.defaultNum
 			self.search = self.delim.join(sys.argv[1:])
 
@@ -69,5 +69,13 @@ class Stack(Google):
 
 	def site_name(self):
 		return 'stackoverflow'
+
+
+class Wiki(Google):
+
+	baseSearchURL = 'http://google.com/search?q=insite:wikipedia.org'
+
+	def site_name(self):
+		return 'wikipedia'
 
 	
