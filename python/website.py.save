@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#! /usr/bin/pytho
 
 import sys, requests, bs4, webbrowser
 from abc import ABCMeta, abstractmethod
@@ -16,10 +16,12 @@ class Website(object):
 	linkContainer = ''
 	
 	def __init__(self, rawInput):
+		# If first CL argument is digit, open that many tabs
+		# Otherwise, use default value
 		if sys.argv[1].isdigit():
 			self.num = int(sys.argv[1])
 			self.search = self.delim.join(sys.argv[2:])
-		else: 
+		else:
 			self.num = self.defaultNum
 			self.search = self.delim.join(sys.argv[1:])
 

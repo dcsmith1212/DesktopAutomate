@@ -1,0 +1,7 @@
+click("1472070187160.png")
+wait("1472070262776.png", 10)
+doubleClick("1472070262776.png")
+type("wikipedia.org" + Key.ENTER)
+wait("1472070358318.png",10)
+click("1472070358318.png")
+type("dynamic programming" + Key.ENTER)

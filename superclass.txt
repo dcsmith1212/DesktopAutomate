@@ -1,0 +1,21 @@
+class Webpage:
+
+
+baseUrl 			(for requests calls) [this is optional. if not given, page isn't the foundation of websearch.]
+delim				(for pages with base urls; needed for initializing search through url bar)
+defaultNum 			(optional, if more than one, the page loads multiple links)
+selectString		(for beautifulSoup; need to know what next link is for a given page)
+baseLinkURL
+
+request_page
+parse_html
+open_link
+(advance_to_next_page)
+
+
+
+
+class Websearch:
+
+
+What "techniques" do I use to traverse the internet? For accessing gmail, I monotonically click through a list of webpages until arriving at my destination. For stack forums, I usually google a problem and open the most promising tabs. How else to I work the internet? Think about pirate bay, streaming shows, Netflix, etc.

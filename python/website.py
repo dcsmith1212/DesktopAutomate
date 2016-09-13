@@ -6,47 +6,58 @@ from abc import ABCMeta, abstractmethod
 class Website(object):
 	'Contains all components necessary to access a variety of websites'
 	
-	__metaclass__ = ABCMeta
+	#__metaclass__ = ABCMeta
 
 	baseSearchURL = ''
+	delim = []
 	defaultNum = 0
-	delim = ''
 	selectString = ''
 	baseLinkURL = ''
 	linkContainer = ''
 	
 	def __init__(self, rawInput):
-		if sys.argv[1].isdigit():
-			self.num = int(sys.argv[1])
-			self.search = self.delim.join(sys.argv[2:])
-		else:
-			self.num = self.defaultNum
-			self.search = self.delim.join(sys.argv[1:])
+		# If first CL argument is a digit, open that many tabs
+		# Otherwise use default value
+		if len(sys.argv) > 1:
+			if sys.argv[1].isdigit():
+				self.num = int(sys.argv[1])
+				self.search = self.delim.join(sys.argv[2:])
+			else:
+				self.num = self.defaultNum
+				self.search = self.delim.join(sys.argv[1:])
 
-	def __request_page(self):
-		print "Searching..."
+	def request_page(self):
+		# Access web page based on default URL and phrase searched
+		# Syntax for custom search portion will vary per website 
+		# Usually search are separated by some delimiter
 		self.res = requests.get(self.baseSearchURL + self.search)
 		self.res.raise_for_status()
 
-	def __parse_html(self):
-		# Try removing 'lxml' if fails on different system
+	def parse_html(self):
+		# Grab html from webpage and find contents of specific tag,
+		# given by the attribute (and class?) type in the html code
+		# [Try removing 'lxml' if fails on different system]
 		self.html = bs4.BeautifulSoup(self.res.text, 'lxml')
 		self.linkElems = self.html.select(self.selectString)
 
-	def __open_link(self):
+	def open_link(self):
+		# Choose either the specified number of links for opening,
+		# or the max number of links on the page if that's too big:
+		print "Searching..."
 		self.numOpen = min(self.num, len(self.linkElems))
 		for i in range(self.numOpen):
 			webbrowser.open_new_tab(self.baseLinkURL + 
 						self.linkElems[i].get(self.linkContainer))
 
 	def search_web(self):
-		self.__request_page()
-		self.__parse_html()
-		self.__open_link()
+		self.request_page()
+		self.parse_html()
+		self.open_link()
 
-	@abstractmethod
-	def site_name(self):
-		pass
+	# Might need this to use ABCMeta
+	#@abstractmethod
+	#def site_name(self):
+	#	pass
 
 #----------------------------------------------------------------------
 
@@ -79,3 +90,4 @@ class Wiki(Google):
 		return 'wikipedia'
 
 	
+
