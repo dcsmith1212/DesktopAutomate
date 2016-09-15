@@ -2,16 +2,7 @@
 // It loads several images sequentially and tries to find squares in
 // each image
 
-#include "opencv2/opencv.hpp"
-
-//#include "opencv2/core.hpp"
-//#include "opencv2/imgproc.hpp"
-//#include "opencv2/imgcodecs.hpp"
-//#include "opencv2/highgui.hpp"
-
-#include <iostream>
-#include <math.h>
-#include <string.h>
+#include "findrectangles.h"
 
 using std::cout;
 using std::endl;
@@ -24,6 +15,10 @@ using cv::pyrUp;
 using cv::Size;
 using cv::Scalar;
 
+int thresh = 50, N = 11;
+const char* wndname = "Square Detection Demo";
+
+/*
 static void help()
 {
     cout <<
@@ -36,10 +31,7 @@ static void help()
     "./squares [file_name (optional)]\n"
     "Using OpenCV version " << CV_VERSION << "\n" << endl;
 }
-
-
-int thresh = 50, N = 11;
-const char* wndname = "Square Detection Demo";
+*/
 
 // helper function:
 // finds a cosine of angle between vectors
@@ -55,7 +47,7 @@ static double angle( Point pt1, Point pt2, Point pt0 )
 
 // returns sequence of squares detected on the image.
 // the sequence is stored in the specified memory storage
-static void findSquares( const Mat& image, vector<vector<Point> >& squares )
+void findSquares( const Mat& image, vector<vector<Point> >& squares )
 {
     squares.clear();
 
@@ -138,7 +130,7 @@ static void findSquares( const Mat& image, vector<vector<Point> >& squares )
 
 
 // the function draws all the squares in the image
-static void drawSquares( Mat& image, const vector<vector<Point> >& squares )
+void drawSquares( Mat& image, const vector<vector<Point> >& squares )
 {
     for( size_t i = 0; i < squares.size(); i++ )
     {
