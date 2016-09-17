@@ -1,32 +1,9 @@
-// g++ -std=c++14 boxFinder.cpp -I/usr/include/leptonica -I/usr/include/tesseract/ -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_ml -lopencv_video -lopencv_features2d -lopencv_calib3d -lopencv_objdetect -lopencv_contrib -lopencv_legacy -llept -ltesseract
-
-// Current dependencies:
-//
-// OpenCV
-// Leptonica
-// Tesseract
-// ffmpeg
-//
-//
-
-// TO DO:
-//  - Group program into functions
-//  - Get Makefile working
-//  - Program UI
-//  - Learn how findrectangles work (and clean up)
-
 #include <iostream>
 #include <string>
 #include "ocvmacros.h"
+#include "textboxfinder.h"
 
-#include "linuxscreen.h"
-#include "tessocr.h"
-#include "findquery.h"
-#include "findtextbox.h"
-#include "enhanceimage.h"
-
-
-// Standard functions/data types
+// Standard functions/datatypes
 using std::cout;
 using std::endl;
 using std::string;
@@ -40,20 +17,19 @@ using cv::waitKey;
 using cv::imread;
 
 int main() {
-	// Screenshot
-	string inputImg = "images/screen4.png";
-	Mat fullScreen = imread(inputImg, CV_LOAD_IMAGE_COLOR);
+	// Gets user's desired fullscreen and query image
+	Mat fullScreen, queryImage;
+	get_input_images(fullScreen, queryImage);
 
-	// Query image
-	string inputSub = "images/textbox4.png";
-	Mat subImage = imread(inputSub, CV_LOAD_IMAGE_COLOR);
-
+	// Display chosen images
 	showim("Fullscreen", fullScreen);
-	showim("Query Image", subImage);
+	showim("Query Image", queryImage);
 
 	// Runs NCC on query image in screenshot
-	Mat foundImage = find_query_image(fullScreen, subImage);	
+	Mat drawImg = fullScreen.clone();
+	Mat foundImage = find_query_image(fullScreen, queryImage, drawImg);	
 	showim("Found Image", foundImage);
+	showim("Edited fullscreen", drawImg);
 
 	// Processes the found image and then splits into textbox field 
 	// and textbox label
@@ -68,12 +44,20 @@ int main() {
 	enhance_image(textFieldImg, enhancedFieldImg);
 	enhance_image(textLabelImg, enhancedLabelImg);
 
+	cout << endl << "Tesseract OCR Output:" << endl; 
 	char* outLabel = callTesseract(enhancedLabelImg);
-	cout << "TextBox label:   " << outLabel << endl;
+	cout << "TextBox label:   " << outLabel;
 	
 	char* outText = callTesseract(enhancedFieldImg);
-	cout << "TextBox data:   " << outText << endl;
-	
+	cout << "TextBox data:   " << outText;
+
+
+	cout << endl << endl << "Press any key to quit." << endl;
+	waitKey(0);
+	return 0;
+}
+
+
 
 
 /*
@@ -94,6 +78,17 @@ int main() {
 */
 
 
-	waitKey(0);
-	return 0;
-}
+
+// g++ -std=c++14 boxFinder.cpp -I/usr/include/leptonica -I/usr/include/tesseract/ -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_ml -lopencv_video -lopencv_features2d -lopencv_calib3d -lopencv_objdetect -lopencv_contrib -lopencv_legacy -llept -ltesseract
+
+// Current dependencies:
+//
+// OpenCV
+// Leptonica
+// Tesseract
+// ffmpeg
+
+// TO DO:
+//  - Get Makefile working
+//  - Return coordinates
+

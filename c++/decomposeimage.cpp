@@ -1,5 +1,4 @@
-#include "findtextbox.h"
-#include "findrectangles.h"
+#include "textboxfinder.h"
 #include <vector>
 #include <iostream>
 using std::vector;

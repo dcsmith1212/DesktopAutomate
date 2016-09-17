@@ -1,4 +1,4 @@
-#include "tessocr.h"
+#include "textboxfinder.h"
 
 char* callTesseract(cv::Mat inputImg) {
         char *outText;

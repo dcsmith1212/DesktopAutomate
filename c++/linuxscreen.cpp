@@ -1,4 +1,4 @@
-#include "linuxscreen.h"
+#include "textboxfinder.h"
 
 void ImageFromDisplay(std::vector<uint8_t>& Pixels, int& Width, int& Height, int& BitsPerPixel)
 {

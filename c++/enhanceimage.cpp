@@ -1,4 +1,4 @@
-#include "enhanceimage.h"
+#include "textboxfinder.h"
 
 void enhance_image(Mat& inputImg, Mat& enhancedImg) {
 	Mat scaledImg;

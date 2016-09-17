@@ -2,7 +2,7 @@
 // It loads several images sequentially and tries to find squares in
 // each image
 
-#include "findrectangles.h"
+#include "textboxfinder.h"
 
 using std::cout;
 using std::endl;
@@ -18,25 +18,10 @@ using cv::Scalar;
 int thresh = 50, N = 11;
 const char* wndname = "Square Detection Demo";
 
-/*
-static void help()
-{
-    cout <<
-    "\nA program using pyramid scaling, Canny, contours, contour simpification and\n"
-    "memory storage (it's got it all folks) to find\n"
-    "squares in a list of images pic1-6.png\n"
-    "Returns sequence of squares detected on the image.\n"
-    "the sequence is stored in the specified memory storage\n"
-    "Call:\n"
-    "./squares [file_name (optional)]\n"
-    "Using OpenCV version " << CV_VERSION << "\n" << endl;
-}
-*/
-
 // helper function:
 // finds a cosine of angle between vectors
 // from pt0->pt1 and from pt0->pt2
-static double angle( Point pt1, Point pt2, Point pt0 )
+double angle( Point pt1, Point pt2, Point pt0 )
 {
     double dx1 = pt1.x - pt0.x;
     double dy1 = pt1.y - pt0.y;
@@ -136,7 +121,7 @@ void drawSquares( Mat& image, const vector<vector<Point> >& squares )
     {
         const Point* p = &squares[i][0];
         int n = (int)squares[i].size();
-        cv::polylines(image, &p, &n, 1, true, Scalar(0,255,0), 1);
+        cv::polylines(image, &p, &n, 1, true, Scalar(255,0,0), 1);
     }
 
     cv::imshow(wndname, image);
