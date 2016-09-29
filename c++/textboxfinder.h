@@ -16,29 +16,63 @@
 using std::vector;
 using cv::Mat;
 using cv::Point;
+using cv::Rect;
 
-// decomposeimage.cpp
-void preprocessing(Mat&, Mat&);
-void decompose_image(Mat&, Mat&, Mat&);
+class TextBoxFinder
+{
+private:
+      // Private member variables
+      const int BINARY_THRESH = 10;
+      const int CANNY_THRESH  = 50;
+      const int N_THRESHOLDS  = 11;
 
-// enhanceimage.cpp
-void enhance_image(Mat&, Mat&);
+      Mat template_img;
+      Mat fullscreen_img;
+      Mat found_img;
+      Mat processed_img;
+      Mat text_field_img;
+      Mat text_label_img;
 
-// findquery.cpp
-cv::Mat find_query_image(Mat& fullScreen, Mat& queryImg, Mat& drawImg);
+      Mat field_parent_img;
+      Mat rect_display_img;
+      Mat gray_clone_img;
 
-// findrectangle.cpp
-double angle(Point, Point, Point);
-void findSquares(const Mat&, vector<vector<Point>>&);
-void drawSquares(Mat&, const vector<vector<Point>>&);
+      // findrectangle.cpp
+      double angle(Point, Point, Point);
+      void findRectangles(const Mat&, vector<vector<Point>>&, vector<double>&);
+      void drawRectangles(Mat&, const vector<vector<Point>>&);
 
-// linuxinterface.cpp
-void get_input_images(Mat&, Mat&); 
+      // decomposeimage.cpp
+      void preprocessImage();
+      void decomposeImage();
 
-// linuxscreen.cpp
-void ImageFromDisplay(vector<uint8_t>&, int&, int&, int&);
+      // enhanceimage.cpp
+      void enhanceImage(Mat&);
 
-// tessocr.cpp
-char* callTesseract(Mat); 
+      // findquery.cpp
+      void findTemplateImage();
+
+      // linuxscreen.cpp
+      void imageFromDisplay(vector<uint8_t>&, int&, int&, int&);
+
+      // tessocr.cpp
+      char* callTesseract(Mat); 
+
+public:
+      // Constructors
+      TextBoxFinder();
+      TextBoxFinder(Mat&, Mat&);
+
+      // Public variables
+      char* text_field;
+      char* text_label;
+      Rect template_stats;
+
+      // Finds label and text of a textbox given a template image
+      void findBoxByTemplate(); 
+
+      // linuxinterface.cpp
+      void getInputImages(); 
+};
 
 #endif
