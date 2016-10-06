@@ -1,4 +1,4 @@
-#include "textboxfinder.h"
+#include "findboxbytemplate.h"
 #include "ocvmacros.h"
 
 #include <vector>
@@ -22,12 +22,12 @@ using cv::namedWindow;
 using cv::waitKey;
 
 // Blank constructor -- automatically calls for user input upon initialization
-TextBoxFinder::TextBoxFinder() {
+FindBoxByTemplate::FindBoxByTemplate() {
       getInputImages();
 }
 
 // Param. constructor -- takes predefined screen and template images
-TextBoxFinder::TextBoxFinder(Mat& input_screen, Mat& input_template) {
+FindBoxByTemplate::FindBoxByTemplate(Mat& input_screen, Mat& input_template) {
       fullscreen_img = input_screen;
       template_img   = input_template;
 }
@@ -35,7 +35,7 @@ TextBoxFinder::TextBoxFinder(Mat& input_screen, Mat& input_template) {
 // Helper function for findSquares:
 // Finds a cosine of angle between vectors
 // from pt0->pt1 and from pt0->pt2
-double TextBoxFinder::angle( Point pt1, Point pt2, Point pt0 ) {
+double FindBoxByTemplate::angle( Point pt1, Point pt2, Point pt0 ) {
       double dx1 = pt1.x - pt0.x;
       double dy1 = pt1.y - pt0.y;
       double dx2 = pt2.x - pt0.x;
@@ -44,7 +44,7 @@ double TextBoxFinder::angle( Point pt1, Point pt2, Point pt0 ) {
 }
 
 // Returns sequence of squares detected on the image.
-void TextBoxFinder::findRectangles(const Mat& image, vector<vector<Point> >& rectangles, vector<double>& max_cosines) {
+void FindBoxByTemplate::findRectangles(const Mat& image, vector<vector<Point> >& rectangles, vector<double>& max_cosines) {
       rectangles.clear();
 
       Mat bin;
@@ -90,7 +90,7 @@ void TextBoxFinder::findRectangles(const Mat& image, vector<vector<Point> >& rec
 }
 
 // The function draws all the squares in the image
-void TextBoxFinder::drawRectangles(Mat& image, const vector<vector<Point>>& rectangles) {
+void FindBoxByTemplate::drawRectangles(Mat& image, const vector<vector<Point>>& rectangles) {
       for( int i = 0; i < rectangles.size(); i++ ) {
 	    const Point* p = &rectangles[i][0];
 	    int n = (int)rectangles[i].size();
@@ -99,7 +99,7 @@ void TextBoxFinder::drawRectangles(Mat& image, const vector<vector<Point>>& rect
       showim("All rectangles detected", image);      
 }
 
-void TextBoxFinder::preprocessImage() {
+void FindBoxByTemplate::preprocessImage() {
       // Copy input image for sampling later in decompose_image
       rect_display_img = found_img.clone();
       field_parent_img = found_img.clone();
@@ -120,7 +120,7 @@ void TextBoxFinder::preprocessImage() {
       processed_img = lap;
 }
 
-void TextBoxFinder::decomposeImage() {
+void FindBoxByTemplate::decomposeImage() {
       // Find rectangle that makes up boundary of text field
       vector<vector<Point>> rectangles;
       vector<double> max_cosines;
@@ -157,7 +157,7 @@ void TextBoxFinder::decomposeImage() {
 	text_label_img = gray_clone_img;
 }
 
-void TextBoxFinder::enhanceImage(Mat& input_img) {
+void FindBoxByTemplate::enhanceImage(Mat& input_img) {
       // Upscales the image and blurs to give a percieved increase in resolution
       Mat enhanced_img;
       cv::resize(input_img, input_img, cv::Size(), 5, 5);      
@@ -165,7 +165,7 @@ void TextBoxFinder::enhanceImage(Mat& input_img) {
       cv::addWeighted(input_img, 1.5, enhanced_img, -0.5, 0, input_img);
 }
 
-void TextBoxFinder::findTemplateImage() {
+void FindBoxByTemplate::findTemplateImage() {
       // Runs NCC on template and fullscreen
       Mat output;
       cv::matchTemplate(fullscreen_img, template_img, output, CV_TM_CCOEFF_NORMED);
@@ -194,7 +194,7 @@ void TextBoxFinder::findTemplateImage() {
       found_img = sampled_template;
 }
 
-void TextBoxFinder::getInputImages() {
+void FindBoxByTemplate::getInputImages() {
       cout << "\n-----------------------------------\n"
 	  "Textbox Location and Data Retrieval\n"
 	  "   Implementation as of 9/16/16    \n"
@@ -217,7 +217,7 @@ void TextBoxFinder::getInputImages() {
 }
 
 // Not yet incorporated into main program
-void TextBoxFinder::imageFromDisplay(vector<uint8_t>& pixels, int& width, int& height, int& bits_per_pixel) {
+void FindBoxByTemplate::imageFromDisplay(vector<uint8_t>& pixels, int& width, int& height, int& bits_per_pixel) {
       Display* display = XOpenDisplay(nullptr);
       Window root = DefaultRootWindow(display);
 
@@ -238,7 +238,7 @@ void TextBoxFinder::imageFromDisplay(vector<uint8_t>& pixels, int& width, int& h
       XCloseDisplay(display);
 }
 
-char* TextBoxFinder::callTesseract(Mat input_image) {
+char* FindBoxByTemplate::callTesseract(Mat input_image) {
       tesseract::TessBaseAPI api;
 
       // Initialize tesseract-ocr with English, without specifying tessdata path
@@ -255,7 +255,7 @@ char* TextBoxFinder::callTesseract(Mat input_image) {
       return api.GetUTF8Text();
 }
 
-void TextBoxFinder::findBoxByTemplate() {
+void FindBoxByTemplate::findBoxByTemplate() {
       // Display chosen images
       showim("Fullscreen", fullscreen_img);
       showim("Template Image", template_img);

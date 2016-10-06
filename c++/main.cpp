@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
-#include "textboxfinder.h"
+#include "findboxbytemplate.h"
+#include "textdetect.h"
 #include "ocvmacros.h"
 
 #include <cmath>
@@ -10,6 +11,7 @@ using std::cout;
 using std::endl;
 using std::string;
 using std::vector;
+using std::cerr;
 
 // OpenCV functions/datatypes
 using cv::Mat;
@@ -20,11 +22,11 @@ using cv::imread;
 
 using cv::Range;
 
-int main() {
-// This is code for template-based matching
+int main(int argc, char *argv[]) {
+// Find box by template
 /*
       // Initialize finder object (empty constuctor will call getInputImages() automatically)
-	TextBoxFinder finder;
+	FindBoxByTemplate finder;
 
 	// Retrieves location of template in screenshot, and determines label and field text
 	finder.findBoxByTemplate();
@@ -36,28 +38,10 @@ int main() {
       cout << "Textbox field:   " << finder.text_field << endl;
 */
 
+      // Detect text in the image
+      DetectText dt(argv);      
+      dt.detectText();
 
-      Mat base_img = cv::imread("images/textboxes/test11/screen.png");
-      showim("test", base_img);      
-
-      int w = base_img.cols;
-      int h = base_img.rows;
-
-      int w_mid = floor(w/2);
-      int h_mid = floor(h/2);
-
-
-      Mat ul_img(base_img, Range(0,h_mid), Range(0,w_mid));
-      Mat ur_img(base_img, Range(0,h_mid), Range(w_mid+1,w));      
-      Mat ll_img(base_img, Range(h_mid+1,h), Range(0,w_mid));
-      Mat lr_img(base_img, Range(h_mid+1,h), Range(w_mid+1,w));
-
-      showim("ul",ul_img);
-      showim("ur",ur_img);
-      showim("ll",ll_img);
-      showim("lr",lr_img);
-
- 
 	waitKey(0);
 	return 0;
 }
@@ -88,3 +72,4 @@ int main() {
 // OpenCV
 // Leptonica
 // Tesseract
+// Boost

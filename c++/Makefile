@@ -1,16 +1,15 @@
-# This target will compile all files
-CC=g++ -std=c++11
-#SOURCES=decomposeimage.cpp findquery.cpp linuxinterface.cpp ocvmacros.cpp textboxmain.cpp enhanceimage.cpp findrectangles.cpp linuxscreen.cpp tessocr.cpp
-SOURCES=textboxfinder.cpp ocvmacros.cpp main.cpp
-INCLUDES=-I/usr/include/leptonica -I/usr/include/tesseract
-LDFLAGS=-I/usr/include/leptonica -I/usr/include/tesseract -I/usr/include/opencv -I/usr/include/opencv2 -lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_ml -lopencv_video -lopencv_features2d -lopencv_calib3d -lopencv_objdetect -lopencv_contrib -lopencv_legacy -llept -ltesseract -lX11
+#This target will compile all files
+CC=g++-5 -std=c++11
+SOURCES=textdetect.cpp findboxbytemplate.cpp ocvmacros.cpp main.cpp
+INCLUDES=-I/usr/include/leptonica -I/usr/include/tesseract -I/usr/include/opencv -I/usr/include/opencv2 -I/usr/include/boost
+LDFLAGS=-lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_ml -lopencv_video -lopencv_features2d -lopencv_calib3d -lopencv_objdetect -lopencv_contrib -lopencv_legacy -llept -ltesseract -lX11
 EXECUTABLE=textboxfinder
 
 all:
 	$(CC) -o $(EXECUTABLE) $(SOURCES) $(INCLUDES) $(LDFLAGS) 
 
 clean:
-	rm -f $(EXECUTABLE) quad
+	rm -f $(EXECUTABLE)
 
 #CC=g++ -std=c++11
 #CFLAGS=-Wall
