@@ -1,4 +1,5 @@
 #include "textdetect.h"
+#include "ocvmacros.h"
 
 #include <iostream>
 #include <boost/graph/adjacency_list.hpp>
@@ -30,9 +31,15 @@ const Scalar RED  (0, 0, 255);
 // TODO: Import bitmap instead of png
 DetectText::DetectText(char *argv[]) {
 	input = cv::imread(argv[1]);
-	if (input.empty())
+
+      if (input.empty())
 		cerr << "couldn't load query image" << endl;
 	cv::cvtColor(input, input, CV_BGR2RGB);
+
+      Mat inputTemp;
+      cv::resize(input, inputTemp, cv::Size(0,0), 2.0, 1.0);
+      input = inputTemp;
+      inputTemp.release();
 
 	dark_on_light = atoi(argv[3]);
 }
@@ -48,9 +55,6 @@ void DetectText::edgeAndGradient() {
 	// Used for component display later
 	componentDisplay = input.clone();
 	chainDisplay = input.clone();
-
-	// TODO: Trt up-scaling the image first
-	// to improve separation of letters in Canny image
 
 	// Create Canny Image
 	double threshold_low = 175; 
@@ -82,6 +86,7 @@ void DetectText::edgeAndGradient() {
 void DetectText::strokeWidthTransform() {
     // Step size for moving along the gradient
     float prec = .05;
+int iterator = 0;
 	// Loop through every pixel in the image
     for( int row = 0; row < edgeImage.rows; row++ ){
         const uchar* ptr = (const uchar*)edgeImage.ptr(row);
@@ -141,7 +146,6 @@ void DetectText::strokeWidthTransform() {
                         if (edgeImage.at<uchar>(curPixY, curPixX) > 0) {
                             r.q = pnew;              
 							// Normalize gradient at other end of ray
-							// TODO: Do we need to normalize to test orthogonality?
                             float G_xt = gradientX.at<float>(curPixY,curPixX);
                             float G_yt = gradientY.at<float>(curPixY,curPixX);
                             mag = sqrt( (G_xt * G_xt) + (G_yt * G_yt) );
@@ -155,7 +159,8 @@ void DetectText::strokeWidthTransform() {
 
 							// Check to see if the gradients are orthogonal (using dot product)
                             // This ensures that the two edges are parallel, which they should be for letters
-                            if (acos(G_x * -G_xt + G_y * -G_yt) < PI/2.0 ) {
+                            if (acos(G_x * -G_xt + G_y * -G_yt) < PI/4.0 ) {
+iterator++;
 								// Store the length of the ray in each of the ray's elements (or the min if there's already a value there)
                                 float length = sqrt( ((float)r.q.x - (float)r.p.x)*((float)r.q.x - (float)r.p.x) + ((float)r.q.y - (float)r.p.y)*((float)r.q.y - (float)r.p.y));
                                 for (vector<SWTPoint2d>::iterator pit = points.begin(); pit != points.end(); pit++) {
@@ -179,6 +184,7 @@ void DetectText::strokeWidthTransform() {
             ptr++;
         }
     }
+cout << "IT:   " << iterator << endl;
 }
 
 
@@ -224,6 +230,7 @@ void DetectText::displaySWT() {
             ptr++;
         }
     }
+
 
 	// Sets non-stroke width pixels to white and scales other to be between 0 and 1
     float difference = maxVal - minVal;
@@ -578,7 +585,7 @@ void DetectText::makeChains() {
         for ( unsigned int j = i + 1; j < validComponents.size(); j++ ) {
 
 			// Check that SW median value for both components are similar
-			// and that the components are roughly the same size
+			// and that the components are roughly the same height
             if ( (compMedians[i]/compMedians[j] <= 2.0 || compMedians[j]/compMedians[i] <= 2.0) &&
                  (compDimensions[i].y/compDimensions[j].y <= 2.0 || compDimensions[j].y/compDimensions[i].y <= 2.0)) {
 
@@ -592,8 +599,7 @@ void DetectText::makeChains() {
                                   (colorAverages[i].z - colorAverages[j].z) * (colorAverages[i].z - colorAverages[j].z);
 
 				// If distance between two components is less than 3 times the width of the larger component
-				// TODO: This actually uses the height IF the height is smaller than the width; is that necessary?
-                if (dist < 9*(float)(std::max(std::min(compDimensions[i].x,compDimensions[i].y),std::min(compDimensions[j].x,compDimensions[j].y)))
+                if (dist < 36*(float)(std::max(std::min(compDimensions[i].x,compDimensions[i].y),std::min(compDimensions[j].x,compDimensions[j].y)))
                     *(float)(std::max(std::min(compDimensions[i].x,compDimensions[i].y),std::min(compDimensions[j].x,compDimensions[j].y)))
                     && colorDist < 1600) {
 					
@@ -628,7 +634,7 @@ void DetectText::makeChains() {
 
 	cerr << endl;
 	// Max angle between two pair directions to consider them part of the same line
-    const float strictness = PI/6.0;
+    const float strictness = PI/4.0;
 
     // Merge chains
 	// This loop runs until an iteration has elapsed without any merging
@@ -639,7 +645,7 @@ void DetectText::makeChains() {
             chains[i].merged = false;
         merges = 0;
         vector<DetectText::Chain> newchains;
-		// For every pair of pairs
+		// For every two chains
         for (unsigned int i = 0; i < chains.size(); i++) {
             for (unsigned int j = 0; j < chains.size(); j++) {
                 if (i != j) {
@@ -748,7 +754,6 @@ void DetectText::makeChains() {
 		// At each iterations, discard the pairs that have been grouped into a larger chain
 		// and sort the remaining chains by length
 
-		// TODO: Could this be put off until after the while loop finishes? 
 		// Seems unnecessary to do this AND have the if(!chain[i].merged) check
         for (unsigned int i = 0; i < chains.size(); i++) {
             if (!chains[i].merged) {
@@ -799,16 +804,38 @@ void DetectText::makeChains() {
 // Runs the whole process, from preprocessing to word chaining
 void DetectText::detectText() {
 	// Runs preprocessing and stroke width transform
+tic();
 	edgeAndGradient();
+cout << "Edge              ";
+toc();
+tic();
 	strokeWidthTransform();
+cout << "SWT:              ";
+toc();
+tic();
 	SWTMedianFilter();
-	displaySWT();
+cout << "Median filter:    ";
+toc();
+
+//      displaySWT();
 
 	// Calculate legally connect components from SWT and gradient image.
+tic();
 	findLegallyConnectedComponents();
+cout << "Find components:  ";
+toc();
+tic();
 	filterComponents();
+cout << "Filter:           ";
+toc();
+tic();
 	renderComponentsWithBoxes();
+cout << "Render comps:     ";
+toc();
 	
 	// Chaining together valid words
+tic();
 	makeChains();
+cout << "Make Chains:      ";
+toc();
 }
