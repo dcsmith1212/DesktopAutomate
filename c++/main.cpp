@@ -4,6 +4,7 @@
 #include "textdetect.h"
 #include "ocvmacros.h"
 #include <map>
+#include <set>
 
 #include <cmath>
 
@@ -13,7 +14,7 @@ using std::endl;
 using std::string;
 using std::vector;
 using std::cerr;
-
+using std::set;
 
 // OpenCV functions/datatypes
 using cv::Mat;
@@ -21,8 +22,9 @@ using cv::namedWindow;
 using cv::imshow;
 using cv::waitKey;
 using cv::imread;
-
+using cv::Point;
 using cv::Range;
+using cv::Rect;
 
 using namespace cv;
 
@@ -43,150 +45,150 @@ inline char* callTesseract(Mat input_image) {
       return api.GetUTF8Text();
 }
 
-
-//int levenshteinDistance(char* query, char* test) {
-//}
-
+// Trying the AA-based technique
 int main(int argc, char *argv[]) {
-// Find box by template
+      Mat input_img = imread("google.png");
+      Mat pos_img = input_img.clone();
+      Mat neg_img = input_img.clone();
+      Mat group_img = input_img.clone();
+      //showim("input", input_img);
+
+      // To grayscale
+      cv::cvtColor(input_img, input_img, CV_RGB2GRAY);
+      
+      // Calculate positive, negative and total horizontal gradient
+      const int KERNEL_SIZE = 1;
+      Mat pos;
+      cv::Sobel(input_img, pos, CV_64F, 1, 0, KERNEL_SIZE);
+      Mat both = abs(pos);
+      Mat neg = both - pos;
+
+      //showim("both", both);
+      //showim("pos", pos);
+      showim("neg", neg);
+
+      
+      // Find the resulting connected components in the general gradient
+      pos.convertTo(pos, CV_8UC1);
+      neg.convertTo(neg, CV_8UC1);
+      vector<vector<Point> > pos_contours, neg_contours;
+      cv::findContours(pos, pos_contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+      cv::findContours(neg, neg_contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
+
+      cout << "# of pos:  " << pos_contours.size() << endl;
+      cout << "# of neg:  " << neg_contours.size() << endl << endl;
+      
+      // Store positive and negative bboxes in a vector 
+      vector<Rect> bounding_boxes;
+      for (vector<Point> contour : pos_contours)
+            bounding_boxes.push_back(cv::boundingRect(contour));
+      for (vector<Point> contour : neg_contours)
+            bounding_boxes.push_back(cv::boundingRect(contour));
+     
+      // Find the centers of the bounding boxes 
+      vector<Point> box_centers;
+      for (Rect box : bounding_boxes) {
+            Point center;
+            center.x = (int)((box.x + box.width)/2);
+            center.y = (int)((box.y + box.height)/2);
+            box_centers.push_back(center);      
+      }
+
+      // Group the connect components based on proximity
+      const int MAX_HORIZ = 8;
+      const int MAX_VERT  = 7;
+      vector<set<int>> valid_groups;
+      set<int> empty;
+      valid_groups.push_back(empty);
+      bool in_a_set;
+      set<int> group;
+      set<int> all_grouped;
+      
+      int xdist, ydist;
+      for (int i = 0; i < bounding_boxes.size(); i++) {
+            for (int j = 0; j < bounding_boxes.size(); j++) {
+                  if (i != j) {
+//                  printf("Current sets:\n");
+//                  for (set<int> group : valid_groups) {
+//                        cout << "{";
+//                        for (int cc : group) cout << cc << ", ";
+//                        cout << "}" << endl;
+//                  }
+//                  printf("Pair: (%d,%d)\n", i, j);
+                        xdist = std::abs(box_centers[i].x - box_centers[j].x);
+                        ydist = std::abs(box_centers[i].y - box_centers[j].y);
+//                  printf("Dists: x = %d,  y = %d\n", xdist, ydist);
+                        if (( xdist < MAX_HORIZ ) && ( ydist < MAX_VERT )) {
+//                  printf("Within distance\n");
+                              in_a_set = 0;
+                              for (int k = 0; k < valid_groups.size(); k++) {
+                                    group = valid_groups[k];
+                                    if ( group.find(i) != group.end() && \
+                                         group.find(j) != group.end() ) {
+//                  printf("Both components in a set \n");
+                                          in_a_set = 1;
+                                          break;
+                                    } else if ( group.find(i) != group.end() ) {
+//                  printf("i = %d  in a set\n", i);
+//                  cout << "Group before addition:   S = {";
+//                  for (int cc : group) cout << cc << ", ";
+//                  cout << "}" << endl;
+                                          group.insert(j);
+                                          valid_groups[k] = group;
+//                  cout << "Group after addition:   S = {";
+//                  for (int cc : group) cout << cc << ", ";
+//                  cout << "}" << endl;
+                                          in_a_set = 1;
+                                          break;
+                                    } else if ( group.find(j) != group.end() ) {
+//                  printf("j = %d  in a set\n", j);
+                                          group.insert(i);
+                                          valid_groups[k] = group;
+                                          in_a_set = 1;
+                                          break;
+                                    }
+                              }
+                              if (!in_a_set) {
+//                  printf("Neither of components in a set\n");
+                                    set<int> new_group;
+                                    new_group.insert(i);
+                                    new_group.insert(j);
+                                    valid_groups.push_back(new_group);
+//                  cout << "New set added:   S = { ";
+//                  for (int cc : new_group) cout << cc << ", ";
+//                  cout << "}" << endl;
+                              }                        
+                        }
+//                  printf("\n"); 
+//                  waitKey(0);
+                  }
+            }
+      }
+
+      pos_contours.insert(pos_contours.end(), neg_contours.begin(), neg_contours.end());
+      for (set<int> group : valid_groups) {
+            if (!group.empty()) {
+                  vector<Point> contour_group;
+                  for (int id : group) {
+                        vector<Point> contour = pos_contours[id];
+                        contour_group.insert(contour_group.end(), contour.begin(), contour.end());
+                  }
+                  Rect big_box = cv::boundingRect(contour_group);
+                  cv::rectangle(group_img, big_box, CV_RGB(255,0,0), 2);
+            }
+      }    
+      showim("groups", group_img); 
 /*
-      // Initialize finder object (empty constuctor will call getInputImages() automatically)
-	FindBoxByTemplate finder;
-
-	// Retrieves location of template in screenshot, and determines label and field text
-	finder.findBoxByTemplate();
-      cout << "Template location (UL corner):   (" << finder.template_stats.x << "," << finder.template_stats.y << ")" << endl;
-      cout << "Template size:   (" << finder.template_stats.width << "x" << finder.template_stats.height << ")" << endl << endl;
-
-      cout << "Tesseract output:" << endl;
-      cout << "Textbox label:   " << finder.text_label << endl;
-      cout << "Textbox field:   " << finder.text_field << endl;
-*/
-/*
-      // Detect text in the image
-      DetectText dt(argv);      
-      dt.detectText();
-
-	waitKey(0);
-	return 0;
+      // Draw positive and negative contours
+      cv::drawContours(pos_img, pos_contours, -1, CV_RGB(255,0,0));
+      cv::drawContours(neg_img, neg_contours, -1, CV_RGB(255,0,0));
+      showim("pos_conts", pos_img);
+      showim("neg_conts", neg_img); 
 */
 
-	namedWindow("test", 0);
-    Mat rawFrame = imread("images/textboxes/test09/screen.png");
-
-    Mat contourImg = rawFrame.clone();
-	Mat bboxImg = rawFrame.clone();
-	Mat valid = rawFrame.clone();
-	Mat sampleImg = rawFrame.clone();
-
-	cv::Mat grayFrame;
-	cv::Mat sobel1;
-	cv::Mat sobel2;
-
-	// Structuring elements for closing, opening, and tophat
-	cv::Mat strel1(4,  4, CV_8U, cv::Scalar(1));
-	cv::Mat strel2(12, 16, CV_8U, cv::Scalar(1));
-	cv::Mat strel3(8, 8, CV_8U, cv::Scalar(1));
-
-	// Scales the image down for processing
-	cv::Mat processedFrame(rawFrame.rows, rawFrame.cols, CV_32FC1);
-	rawFrame.convertTo(rawFrame, CV_32FC1, 1.0/255.0);		
-
-    cv::cvtColor(rawFrame, grayFrame, CV_BGR2GRAY);
-	cv::Sobel(grayFrame, sobel1, -1, 1, 0, 3, 1.0/2.0);	
-	cv::Sobel(grayFrame, sobel2, -1, 0, 1, 3, 1.0/2.0);	
-	cv::magnitude(sobel1, sobel2, processedFrame);
-	cv::morphologyEx(processedFrame, processedFrame, cv::MORPH_CLOSE, strel1);
-	Mat closed = processedFrame.clone();
-	closed = closed * 255.0;
-	imwrite("closed.png", closed);
-
-	cv::morphologyEx(processedFrame, processedFrame, cv::MORPH_TOPHAT, strel2);
-	cv::morphologyEx(processedFrame, processedFrame, cv::MORPH_OPEN, strel1);
-	cv::GaussianBlur(processedFrame, processedFrame, cv::Size(0,0), 2, 2);
-	processedFrame = 255.0 * processedFrame;
-	cv::threshold(processedFrame, processedFrame, 70, 255, cv::THRESH_BINARY);
-	cv::morphologyEx(processedFrame, processedFrame, cv::MORPH_OPEN, strel3);
-	//cv::morphologyEx(processedFrame, processedFrame, cv::MORPH_DILATE, strel1);
-	processedFrame.convertTo(processedFrame, CV_8UC1, 1.0);
-      imwrite("test.png", processedFrame);
 
 
-	vector<vector<Point> > contours;
-	findContours(processedFrame, contours, CV_RETR_LIST, CV_CHAIN_APPROX_NONE);
-	drawContours(contourImg, contours, -1, CV_RGB(255,0,0));
 
-	vector<Rect> boundingBoxes;
-	for (int i = 0; i < contours.size(); i++) {
-		boundingBoxes.push_back(boundingRect(contours[i]));	
-		
-		rectangle(contourImg, boundingBoxes[i], CV_RGB(0,0,255));
-	}
-	imwrite("contour.png", contourImg);
-
-
-	vector<Rect> validBoundingBoxes;
-	Rect currBox;
-	float aspect_ratio;	
-	Range rowRange;
-	Range colRange;
-      Mat up_scale;
-
-	std::map<int, char*> word_scores;
-	char* tessOutput;
-	for (int i = 0; i < boundingBoxes.size(); i++) {
-		currBox = boundingBoxes[i];
-		aspect_ratio = (float)currBox.width / (float)currBox.height;
-		if (aspect_ratio > 0.2) {
-			colRange.start = std::max(boundingBoxes[i].x - 5, 0);
-			rowRange.start = std::max(boundingBoxes[i].y - 5, 0);
-			rowRange.end = std::min(rowRange.start + boundingBoxes[i].height + 10, sampleImg.rows);
-			colRange.end = std::min(colRange.start + boundingBoxes[i].width + 10, sampleImg.cols);
-			
-			//rectangle(valid, sampleRect, CV_RGB(0,0,255));
-			Mat roi(sampleImg,rowRange,colRange);
-                  cv::cvtColor(roi, roi, CV_BGR2GRAY);
-                  cv::threshold(roi, roi, 0, 255, CV_THRESH_BINARY + CV_THRESH_OTSU);
-                 
-                  resize(roi, up_scale, cv::Size(0,0), 3.0, 3.0);      
-
-                  tessOutput = callTesseract(roi);
-			cout << "'" << tessOutput << "'" << endl;
-			word_scores.insert(std::pair<int, char*>(i, tessOutput));
-			
-
-		}
-	}
-	imwrite("valid.png", valid);
-
- 	return 0;
-
+      waitKey(0);
+      return 0;
 }
-
-
-
-// Captures screen shot
-/*
-    int Width = 0;
-    int Height = 0;
-    int Bpp = 0;
-    std::vector<std::uint8_t> Pixels;
-
-    ImageFromDisplay(Pixels, Width, Height, Bpp);
-
-    if (Width && Height)
-    {
-        Mat img = Mat(Height, Width, Bpp > 24 ? CV_8UC4 : CV_8UC3, &Pixels[0]); //Mat(Size(Height, Width), Bpp > 24 ? CV_8UC4 : CV_8UC3, &Pixels[0]); 
-
-        namedWindow("WindowTitle", CV_WINDOW_AUTOSIZE);
-        imshow("Display window", img);
-    }
-*/
-
-
-// Current dependencies:
-//
-// OpenCV
-// Leptonica
-// Tesseract
-// Boost
