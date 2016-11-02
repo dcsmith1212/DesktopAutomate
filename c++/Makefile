@@ -1,7 +1,7 @@
 #This target will compile all files
 CC=g++-5 -std=c++11
-SOURCES=textdetect.cpp findboxbytemplate.cpp ocvmacros.cpp main.cpp
-INCLUDES=-I/usr/include/leptonica -I/usr/include/tesseract -I/usr/include/opencv -I/usr/include/opencv2 -I/usr/include/boost
+SOURCES=findboxbylabel.cpp findboxbytemplate.cpp ocvmacros.cpp main.cpp
+INCLUDES=-I/home/derek/develop/libs/c++/Persistence1D/src/persistence1d -I/usr/include/leptonica -I/usr/include/tesseract -I/usr/include/opencv -I/usr/include/opencv2 -I/usr/include/boost
 LDFLAGS=-lopencv_core -lopencv_imgproc -lopencv_highgui -lopencv_ml -lopencv_video -lopencv_features2d -lopencv_calib3d -lopencv_objdetect -lopencv_contrib -lopencv_legacy -llept -ltesseract -lX11
 EXECUTABLE=textboxfinder
 
