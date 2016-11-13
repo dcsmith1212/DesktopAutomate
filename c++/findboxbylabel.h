@@ -46,13 +46,12 @@ private:
 	vector<std::unordered_set<int>> candidate_groups;		
 	std::unordered_set<int> voided_groups;				
 	vector<Rect> candidate_boxes;							
-    Mat preprocessed_text_img;
+      Mat preprocessed_text_img;
       vector<string> matched_text;
       vector<Rect> rectangles;
 
 	int hist_size = 256;
-	cv::MatND hist;
-	int bg_color, fg_color;
+      int bg_color, fg_color;
 
 	int best_ind = 0;
 	char* best_match;
@@ -64,9 +63,12 @@ private:
       int levenshteinDistance(const char* query, const char* test);
 	void findComponentCenters();
 	void groupConnectedComponents();
-	void calculateHistogramExtrema(Mat candidate_img);
+      bool displayHistogram(cv::MatND hist, string label);
+      bool filterByHistogram(Mat subsample);
+      void calculateHistogramExtrema(Mat candidate_img);
 	void preprocessForOCR(Mat candidate_img);
       void locateBestFieldMatch(int best_ind);
+
 public:
 	FindBoxByLabel(int argc, char *argv[]);
 	void findBoxByLabel();

@@ -87,6 +87,7 @@ void drawRectangles(Mat& image, const vector<Rect>& rectangles) {
 	    //cv::polylines(image, &p, &n, 1, true, Scalar(255,0,0), 1);
       }
       showim("All rectangles detected", image);      
+      cv::imwrite("rect.png", image);
 }
 
 
@@ -154,31 +155,6 @@ int FindBoxByLabel::lcSubStr(string X, string Y) {
       return result;
 }
 
-// Currently not in use
-int FindBoxByLabel::levenshteinDistance(const char* query, const char* test) {
-      string query_str(query);
-      string test_str(test);
-      int m = query_str.length();
-      int n = test_str.length();
-
-      int dist_arr[m+1][n+1] = {0};      
-      
-      for (int i = 1; i <= m; i++) dist_arr[i][0] = i;
-      for (int j = 1; j <= n; j++) dist_arr[0][j] = j;
-
-      int subst_cost;
-      for (int j = 1; j <= n; j++) {
-            for (int i = 1; i <= m; i++) {
-                  if (query_str[i-1] == test_str[j-1]) subst_cost = 0;
-                  else subst_cost = 1;
-                  dist_arr[i][j] = std::min( std::min(dist_arr[i-1][j] + 1,  \
-                                                      dist_arr[i][j-1] + 1), \
-                                             dist_arr[i-1][j-1] + subst_cost );
-            }
-      }
-      
-      return dist_arr[m][n];
-}
 
 void FindBoxByLabel::findComponentCenters() {
       // To grayscale
@@ -300,9 +276,8 @@ const int num_pos = pos_contours.size();
       // Find the bounding box for each of the groupings
       // (the smallest bounding rectangle around all the CCs together)
       pos_contours.insert(pos_contours.end(), neg_contours.begin(), neg_contours.end());
-int z = 0;
-      for (int i = 0; i < candidate_groups.size(); i++) {
       
+      for (int i = 0; i < candidate_groups.size(); i++) {
             // If this group got merged to another, it's no longer valid
             if (voided_groups.find(i) == voided_groups.end()) { 
                   // If there are more than 4 CCs in a group
@@ -318,30 +293,132 @@ int z = 0;
                         // if it isn't too tall and narrow
                         float ar = (float)big_box.width / (float)big_box.height;
                         float area = (float)big_box.width * (float)big_box.height;
-                        if ( (ar > MIN_AR) && (area < 0.2*input_img.rows*input_img.cols) && (area > 150) ) {
+                        if ( (ar > MIN_AR) && (area < 0.2*input_img.rows*input_img.cols) && (area > 150) )
                               candidate_boxes.push_back(big_box);            
-                              double pos_length = 0;
-                              double neg_length = 0;
-                              for (int cc : candidate_groups[i]) {
-                                    if (cc < num_pos) pos_length += cv::arcLength(pos_contours[cc],1);
-                                    else neg_length += cv::arcLength(pos_contours[cc],1); 
-                              }
-                              cout << z << ":  " << pos_length << "   " << neg_length << "    " << pos_length / neg_length << endl;      
-                              z++;
-                        }
                   }
             }
       }
+}
+
+bool FindBoxByLabel::displayHistogram(cv::MatND hist, string label) {
+      // Trying persistence1d
+      vector<float> hist_vec;
+      for (int i = 0; i < hist_size; i++)
+            hist_vec.push_back(hist.at<float>(i));
+      
+      p1d::Persistence1D p;
+      p.RunPersistence(hist_vec);
+      vector<p1d::TPairedExtrema> extrema;
+      p.GetPairedExtrema(extrema,9);
+
+      // Display the histogram
+	int hist_w = 512; int hist_h = 400;
+	int bin_w = cvRound( (double)hist_w/hist_size );
+	Mat hist_img(hist_h, hist_w, CV_8UC3, cv::Scalar(0,0,0));
+	normalize(hist, hist, 0, hist_img.rows, cv::NORM_MINMAX, -1, Mat());
+	for (int i = 1; i < hist_size; i++) {
+		cv::line(hist_img, Point(bin_w*(i-1), hist_h - cvRound(hist.at<float>(i-1))),
+		                   Point(bin_w*(i), hist_h - cvRound(hist.at<float>(i))),
+		                   cv::Scalar(255,50,0), 1, 8, 0);
+      }
+
+      int leftmost, rightmost;
+      for (int k = 0; k < hist_size; k++) {
+            if (hist.at<int>(k) > 0) {
+                  leftmost = k;
+                  break;
+            }
+      }
+      for (int k = hist_size - 1; k >= 0; k--) {
+            if (hist.at<int>(k) > 0) {
+                  rightmost = k;
+                  break;
+            }
+      }
+
+
+
+      int tallest_peak = 0;
+      int tallest_index = 0;
+      int second_peak = -1;
+      int second_index = 0;
+      for(vector< p1d::TPairedExtrema >::iterator it = extrema.begin(); it != extrema.end(); it++) {
+            if (hist.at<float>((*it).MaxIndex) > second_peak) {
+                  if (hist.at<float>((*it).MaxIndex) > tallest_peak) {
+                        second_peak = tallest_peak;
+                        second_index = tallest_index;
+                        tallest_peak = hist.at<float>((*it).MaxIndex);
+                        tallest_index = (*it).MaxIndex;
+                  } else {
+                        second_peak = hist.at<float>((*it).MaxIndex);
+                        second_index = (*it).MaxIndex;
+                  }
+            }
+      }
+      // Plot peaks on histogram
+      for(vector< p1d::TPairedExtrema >::iterator it = extrema.begin(); it != extrema.end(); it++) {
+	      if ((*it).MaxIndex == tallest_index)
+                  cv::circle(hist_img, Point(bin_w*((*it).MaxIndex), hist_h - cvRound(hist.at<float>((*it).MaxIndex))), 2, cv::Scalar(0,0,255), 1);
+            else if ((*it).MaxIndex == second_index)
+                  cv::circle(hist_img, Point(bin_w*((*it).MaxIndex), hist_h - cvRound(hist.at<float>((*it).MaxIndex))), 2, cv::Scalar(0,255,255), 1);
+            else
+                  cv::circle(hist_img, Point(bin_w*((*it).MaxIndex), hist_h - cvRound(hist.at<float>((*it).MaxIndex))), 2, cv::Scalar(0,255,0), 1);
+      }
+
+      if (rightmost - leftmost > 50) {
+            float PEAK_TOL = 0.2;
+            if ( (abs(rightmost - tallest_index) < PEAK_TOL*(rightmost - leftmost)) ||
+                        (abs(leftmost - tallest_index) < PEAK_TOL*(rightmost - leftmost)) )
+                  return 1;
+            else if ( (abs(rightmost - second_index) < PEAK_TOL*(rightmost - leftmost)) ||
+                        (abs(leftmost - second_index) < PEAK_TOL*(rightmost - leftmost)) )
+                  return 1;
+            else
+                  return 0; 
+      } else return 0;
+}
+
+bool FindBoxByLabel::filterByHistogram(Mat subsample) {
+      static float range[] = {0, 255};
+	static const float *ranges[] = {range};
+
+      cv::MatND hist;
+      cv::calcHist(&subsample, 1, 0, Mat(), hist, 1, &hist_size, ranges, true, false);
+
+      bool has_text = displayHistogram(hist, "hist");
+
+      return has_text;      
+/*
+      // Runs histogram on left and right half of subsample 
+      int w = subsample.cols;
+      int h = subsample.rows;
+      Rect left_half(0, 0, (int)w/2, h);
+      Rect right_half((int)w/2 + 1, 0, w - (int)w/2 - 1, h); 
+      
+      Mat left(subsample, left_half);
+      Mat right(subsample, right_half);
+      showim("left", left);
+      showim("right", right);
+
+      cv::MatND left_hist, right_hist;
+	cv::calcHist(&left, 1, 0, Mat(), left_hist, 1, &hist_size, ranges, true, false);
+	cv::calcHist(&right, 1, 0, Mat(), right_hist, 1, &hist_size, ranges, true, false);
+
+      bool left_has_text = displayHistogram(left_hist, "left_hist");
+      bool right_has_text = displayHistogram(right_hist, "right_hist");
+*/
 }
 
 
 void FindBoxByLabel::calculateHistogramExtrema(Mat subsample) {
       static float range[] = {0, 255};
 	static const float *ranges[] = {range};
+      cv::MatND hist;
 
 	// Calculate histogram for this potential text region
 	cv::calcHist(&subsample, 1, 0, Mat(), hist, 1, &hist_size, ranges, true, false);
 
+      
 	// Find the leftmost and right histogram peaks (which
 	// correspond to the background and foreground colors)
 	float curr_val;
@@ -349,7 +426,8 @@ void FindBoxByLabel::calculateHistogramExtrema(Mat subsample) {
 	int left_ind = 0;
 	float right_max = 0;
 	int right_ind = hist_size - 1;
-	for (int k = 0; k < hist_size; k++) { 
+
+      for (int k = 0; k < hist_size; k++) { 
 		  curr_val = hist.at<float>(k);
 		  if (curr_val >= left_max) {
 		        left_max = curr_val;
@@ -373,38 +451,13 @@ void FindBoxByLabel::calculateHistogramExtrema(Mat subsample) {
 		bg_color = left_ind;
 		fg_color = right_ind;
 	}
-
-      // Trying persistence1d
-      vector<float> hist_vec;
-      for (int i = 0; i < hist_size; i++) {
-            hist_vec.push_back(hist.at<float>(i));
-      }
-      
-      p1d::Persistence1D p;
-      p.RunPersistence(hist_vec);
-      vector<p1d::TPairedExtrema> extrema;
-      p.GetPairedExtrema(extrema,9);
-
-      // Display the histogram
-	int hist_w = 512; int hist_h = 400;
-	int bin_w = cvRound( (double)hist_w/hist_size );
-	Mat hist_img(hist_h, hist_w, CV_8UC3, cv::Scalar(0,0,0));
-	normalize(hist, hist, 0, hist_img.rows, cv::NORM_MINMAX, -1, Mat());
-	for (int i = 1; i < hist_size; i++) {
-		cv::line(hist_img, Point(bin_w*(i-1), hist_h - cvRound(hist.at<float>(i-1))),
-		                   Point(bin_w*(i), hist_h - cvRound(hist.at<float>(i))),
-		                   cv::Scalar(255,50,0), 1, 8, 0);
-      }
-
-      for(vector< p1d::TPairedExtrema >::iterator it = extrema.begin(); it != extrema.end(); it++)
-	      cv::circle(hist_img, Point(bin_w*((*it).MaxIndex), hist_h - cvRound(hist.at<float>((*it).MaxIndex))), 2, cv::Scalar(0,255,0), 1);
-//      cout << "Number of peaks:  " << extrema.size() << endl;
 }
 
 
 void FindBoxByLabel::preprocessForOCR(Mat subsample) {
 	// Difference between bg and fg colors
 	int color_spread = std::abs(bg_color - fg_color);
+
 
 	// Creates mask where AA text is close to the text color,
 	// effectively segmenting the letters
@@ -422,17 +475,19 @@ void FindBoxByLabel::preprocessForOCR(Mat subsample) {
 
 
 void FindBoxByLabel::locateBestFieldMatch(int best_ind) {  
+      // Find center of textbox label
       Rect label_box = candidate_boxes[best_ind];
       Point label_center, field_center;
       label_center.x = label_box.x + label_box.width/2;
       label_center.y = label_box.y + label_box.height/2;
+      
       int height;
-
       int matching_field_ind = -1;
       float x_dist;
       float y_dist;
       float best_dist = 9999999;
-
+      // Find the closest rectangle to the center of the label
+      // excluding those rectangles to the left or above the label
       for (int i = 0; i < rectangles.size(); i++) {
             field_center.x = rectangles[i].x + rectangles[i].width/2;
             field_center.y = rectangles[i].y + rectangles[i].height/2;
@@ -441,16 +496,17 @@ void FindBoxByLabel::locateBestFieldMatch(int best_ind) {
             x_dist = field_center.x - label_center.x;
             y_dist = field_center.y - label_center.y;
             if (x_dist > -1*height && y_dist > -1*height) {
-            if ( (rectangles[i].x > label_box.x+label_box.width) ||
-                 (rectangles[i].y > label_box.y+label_box.height) ) {
-                  if ( x_dist*x_dist + y_dist*y_dist < best_dist ) {
-                        best_dist = x_dist*x_dist + y_dist*y_dist;
-                        matching_field_ind = i;
+                  if ( (rectangles[i].x > label_box.x+label_box.width) ||
+                       (rectangles[i].y > label_box.y+label_box.height) ) {
+                        if ( x_dist*x_dist + y_dist*y_dist < best_dist ) {
+                              best_dist = x_dist*x_dist + y_dist*y_dist;
+                              matching_field_ind = i;
+                        }
                   }
-            }
             }
       }      
 
+      
       int x = rectangles[matching_field_ind].x;
       int y = rectangles[matching_field_ind].y;
       int w = rectangles[matching_field_ind].width;
@@ -458,10 +514,11 @@ void FindBoxByLabel::locateBestFieldMatch(int best_ind) {
 
       int x0, y0;
       vector<int> matched_text_inds;
-
+      // Return all text in the optimal rectangle
       for (int i = 0; i < candidate_boxes.size(); i++) {
             x0 = candidate_boxes[i].x + candidate_boxes[i].width/2;
             y0 = candidate_boxes[i].y + candidate_boxes[i].height/2;
+            // If the text field is completely within the optimal box
             if ( x < x0 && x0 < x+w && y < y0 && y0 < y+h )
                   matched_text_inds.push_back(i);
       }
@@ -472,6 +529,7 @@ void FindBoxByLabel::locateBestFieldMatch(int best_ind) {
             cv::rectangle(match_img, candidate_boxes[i], CV_RGB(255,0,0), 2);
       }
       showim("Found label and text field", match_img);
+      cv::imwrite("match.png", match_img);
 }
 
 void FindBoxByLabel::findBoxByLabel() {
@@ -479,30 +537,37 @@ void FindBoxByLabel::findBoxByLabel() {
       groupConnectedComponents();
       
       // For each of the candidate text regions
-	for (int i = 0; i < candidate_boxes.size(); i++) {
-      // Sample a text region from original screen and grayscale
-        Mat subsample(sample_img, candidate_boxes[i]);
-              cv::cvtColor(subsample, subsample, CV_RGB2GRAY);
-              calculateHistogramExtrema(subsample);
-
-            preprocessForOCR(subsample);
-            char* found_text = callTesseract(preprocessed_text_img);
-            string text_str = found_text;
-            std::transform(text_str.begin(), text_str.end(), text_str.begin(), ::tolower);
-            matched_text.push_back(text_str);
-            // Calculate the levenshtein distance between Tesseract output
-		// and the user input
-		// Only keep that score if it's better than all previously calculated scores
-            curr_score = lcSubStr(queried_label, text_str);
-		if (curr_score > best_score) {
-		      best_score = curr_score;
-		      best_ind = i;
-		      best_match = found_text;
+      for (int i = 0; i < candidate_boxes.size(); i++) {
+            // Sample a text region from original screen and grayscale
+            Mat subsample(sample_img, candidate_boxes[i]);
+            cv::cvtColor(subsample, subsample, CV_RGB2GRAY);
+            
+            // Use histogram to determine if subsample has text
+            bool is_text = filterByHistogram(subsample);
+            
+            if (is_text) {
+                  // Proceed with histogram-based segmentation and OCR
+                  calculateHistogramExtrema(subsample);
+                  preprocessForOCR(subsample);
+                  char* found_text = callTesseract(preprocessed_text_img);
+                  string text_str = found_text;
+                  std::transform(text_str.begin(), text_str.end(), text_str.begin(), ::tolower);
+                  matched_text.push_back(text_str);
+                  
+                  // Calculate the greatest common substring between Tesseract output
+                  // and the user input
+                  // Only keep that score if it's larger than all previously calculated scores
+                  curr_score = lcSubStr(queried_label, text_str);
+                  if (curr_score > best_score) {
+                        best_score = curr_score;
+                        best_ind = i;
+                        best_match = found_text;
+                  }
+            
+                  cv::rectangle(group_img, candidate_boxes[i], CV_RGB(0,255,0), 2);
             }
-      showim("Sub", subsample);
-      waitKey();
+            else cv::rectangle(group_img, candidate_boxes[i], CV_RGB(255,0,0), 2);
       }
-
 
 	cout << "Query label:        " << queried_label << endl;
 	cout << "Matched label:   " << best_match << endl;
@@ -510,12 +575,11 @@ void FindBoxByLabel::findBoxByLabel() {
       cv::rectangle(match_img, candidate_boxes[best_ind], CV_RGB(0,255,0), 2);
 
 	// Display bounding boxes of groups
-	for (Rect big_box : candidate_boxes)
-		cv::rectangle(group_img, big_box, CV_RGB(rand()%256, rand()%256, rand()%256), 2);
 	showim("Candidate groups", group_img);
+      cv::imwrite("groups.png", group_img);    
 
       preprocessImgForRectFinder(rectangle_img);
       findRectangles(rectangle_img, rectangles);
-//      drawRectangles(rect_display, rectangles);
-
+      drawRectangles(rect_display, rectangles);
+      locateBestFieldMatch(best_ind);
 }
