@@ -26,11 +26,11 @@ using cv::imread;
 using cv::Point;
 using cv::Range;
 using cv::Rect;
-
+            
 // AA-based technique
 int main(int argc, char *argv[]) {
-      FindBoxByLabel finder(argc, argv);
-	finder.findBoxByLabel();
+      FindBoxByLabel finder(argc, argv, "checkbox");
+      finder.findBoxByLabel();
 
 	waitKey(0);
 	return 0;

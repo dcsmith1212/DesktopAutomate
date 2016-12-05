@@ -30,6 +30,10 @@ using cv::Point;
 using cv::Range;
 using cv::Rect;
 
+double angle( Point pt1, Point pt2, Point pt0 );
+void findRectangles(const Mat& image, vector<Rect>& rectangles, bool squaresOnly);
+void drawRectangles(Mat& image, const vector<Rect>& rectangles);
+      
 class FindBoxByLabel {
 private:
 	string queried_label;
@@ -46,21 +50,24 @@ private:
 	vector<std::unordered_set<int>> candidate_groups;		
 	std::unordered_set<int> voided_groups;				
 	vector<Rect> candidate_boxes;							
+      vector<Rect> valid_boxes;
       Mat preprocessed_text_img;
       vector<string> matched_text;
       vector<Rect> rectangles;
+
+      int object_id;
 
 	int hist_size = 256;
       int bg_color, fg_color;
 
 	int best_ind = 0;
 	char* best_match;
-	int best_score = -1;
+	int best_score = 9999999;
 	int curr_score;
 
 	inline char* callTesseract(Mat& input);
       int lcSubStr(string X, string Y);
-      int levenshteinDistance(const char* query, const char* test);
+      int levenshteinDistance(string query_str, string test_str);
 	void findComponentCenters();
 	void groupConnectedComponents();
       bool displayHistogram(cv::MatND hist, string label);
@@ -70,7 +77,7 @@ private:
       void locateBestFieldMatch(int best_ind);
 
 public:
-	FindBoxByLabel(int argc, char *argv[]);
+	FindBoxByLabel(int argc, char *argv[], string object);
 	void findBoxByLabel();
 };
 

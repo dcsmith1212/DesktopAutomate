@@ -1,24 +1,7 @@
 #include "findboxbylabel.h"
 #include "persistence1d.hpp"
 
-using cv::Scalar;
-
-void preprocessImgForRectFinder(Mat& rectangle_img) {
-      //Converts input image to grayscale
-      Mat gray;
-      cvtColor(rectangle_img, gray, CV_BGR2GRAY);
-
-      // Converts lap and gray to same type, then find Laplacian of query image
-      Mat lap;
-      lap.convertTo(lap, CV_8UC1);
-      gray.convertTo(gray, CV_8UC1);
-      cv::Laplacian(gray,lap,0);	
-
-      rectangle_img = lap;
-}
-
-
-// Helper function for findSquares:
+// Helper function for findRectangles:
 // Finds a cosine of angle between vectors
 // from pt0->pt1 and from pt0->pt2
 double angle( Point pt1, Point pt2, Point pt0 ) {
@@ -29,17 +12,40 @@ double angle( Point pt1, Point pt2, Point pt0 ) {
       return (dx1*dx2 + dy1*dy2)/sqrt((dx1*dx1 + dy1*dy1)*(dx2*dx2 + dy2*dy2) + 1e-10);
 }
 
+inline double distance(Point pt1, Point pt2) { 
+      return pow(pt1.x - pt2.x, 2) + pow(pt1.y - pt2.y, 2); 
+}
 
 // Returns sequence of squares detected on the image.
-void findRectangles(const Mat& image, vector<Rect>& rectangles) {
+void findRectangles(const Mat& image, vector<Rect>& rectangles, int object_id) {
       rectangles.clear();
 
+      //------
+      // Preprocessing for rectangle finder
+      //------
+
+      //Converts input image to grayscale
+      Mat gray;
+      cvtColor(image, gray, CV_BGR2GRAY);
+
+      // Converts lap and gray to same type, then find Laplacian of query image
+      Mat lap;
+      lap.convertTo(lap, CV_8UC1);
+      gray.convertTo(gray, CV_8UC1);
+      cv::Laplacian(gray,lap,0);	
+
+
+
+      //------
+      // Rectangle finding
+      //------
+      //
       Mat bin;
       vector<vector<Point> > contours;
 
       // Find rectangles for a series of low threshold values
-      for (int thresh = 5; thresh <= 75; thresh += 10) {
-            bin = image >= thresh;
+      for (int thresh = 2; thresh <= 82; thresh += 10) {
+            bin = lap >= thresh;
             //bin.convertTo(bin, CV_8UC1);
             
             // Find contours and store them all as a list
@@ -57,21 +63,36 @@ void findRectangles(const Mat& image, vector<Rect>& rectangles) {
                   // relatively large area (to filter out noisy contours)
                   // and be convex.
                   if( approx.size() == 4 &&
-                    std::fabs(contourArea(Mat(approx))) > 500 && //was 1000
-                    std::fabs(contourArea(Mat(approx))) < 0.3*image.rows*image.cols &&
+                    std::fabs(contourArea(Mat(approx))) > 100 && //was 1000
+                    std::fabs(contourArea(Mat(approx))) < 0.3*lap.rows*lap.cols &&
                     cv::isContourConvex(Mat(approx)) ) {
                         double max_cosine = 0;
-      
-                        for( int j = 2; j < 5; j++ ) {
-                        // Find the maximum cosine of the angle between joint edges
-                        double cosine = fabs(angle(approx[j%4], approx[j-2], approx[j-1]));
-                        max_cosine = MAX(max_cosine, cosine);
-                  }
+                        double min_dist = 999999;
+                        double max_dist = 0;
+                        bool is_square = 0;
+
+                        for (int j = 2; j < 5; j++) {
+                              // Find the maximum cosine of the angle between joint edges
+                              double cosine = fabs(angle(approx[j%4], approx[j-2], approx[j-1]));
+                              max_cosine = std::max(max_cosine, cosine);
+                        }
 
                         // If cosines of all angles are small
                         // (all angles are ~90 degree) then store 
-                        if( max_cosine < 0.25 )
-                              rectangles.push_back(cv::boundingRect(approx));
+                        if (max_cosine < 0.25) {
+                              if (object_id == 1) { // If we're looking for squares specifically
+                                    for (int k = 0; k < 4; k++) {
+                                          min_dist = std::min(min_dist, distance(approx[k], approx[(k+1)%4]));
+                                          max_dist = std::max(max_dist, distance(approx[k], approx[(k+1)%4]));
+                                    }
+
+                                    double sq_dist_thresh = 10;
+                                    if (max_dist - min_dist < sq_dist_thresh)  
+                                          rectangles.push_back(cv::boundingRect(approx));
+                              } else {
+                                    rectangles.push_back(cv::boundingRect(approx));
+                              }
+                        }
                   }
             }
       }
@@ -91,8 +112,11 @@ void drawRectangles(Mat& image, const vector<Rect>& rectangles) {
 }
 
 
+//-----------------------------------------------------------
+// Definitions for FindBoxByLabel class
+
 // Constructor
-FindBoxByLabel::FindBoxByLabel(int argc, char *argv[]) {
+FindBoxByLabel::FindBoxByLabel(int argc, char *argv[], string object) {
 	// Stores queried label
       queried_label = "";
       for (int i = 2; i < argc; i++) {
@@ -110,6 +134,9 @@ FindBoxByLabel::FindBoxByLabel(int argc, char *argv[]) {
 	match_img = input_img.clone();
       rectangle_img = input_img.clone();
       rect_display = input_img.clone();
+
+      if (object == "textbox")       object_id = 0;
+      else if (object == "checkbox") object_id = 1;
 }
 
 inline char* FindBoxByLabel::callTesseract(Mat& input) {
@@ -153,6 +180,30 @@ int FindBoxByLabel::lcSubStr(string X, string Y) {
                   if (result < lcs[i][j]) result = lcs[i][j];
       }      
       return result;
+}
+
+
+int FindBoxByLabel::levenshteinDistance(std::string query_str, std::string test_str) {
+      int m = query_str.length();
+      int n = test_str.length();
+
+      int dist_arr[m+1][n+1] = {0};      
+      
+      for (int i = 1; i <= m; i++) dist_arr[i][0] = i;
+      for (int j = 1; j <= n; j++) dist_arr[0][j] = j;
+
+      int subst_cost;
+      for (int j = 1; j <= n; j++) {
+            for (int i = 1; i <= m; i++) {
+                  if (query_str[i-1] == test_str[j-1]) subst_cost = 0;
+                  else subst_cost = 1;
+                  dist_arr[i][j] = std::min( std::min(dist_arr[i-1][j] + 1,  \
+                                                      dist_arr[i][j-1] + 1), \
+                                             dist_arr[i-1][j-1] + subst_cost );
+            }
+      }
+      
+      return dist_arr[m][n];
 }
 
 
@@ -388,25 +439,6 @@ bool FindBoxByLabel::filterByHistogram(Mat subsample) {
       bool has_text = displayHistogram(hist, "hist");
 
       return has_text;      
-/*
-      // Runs histogram on left and right half of subsample 
-      int w = subsample.cols;
-      int h = subsample.rows;
-      Rect left_half(0, 0, (int)w/2, h);
-      Rect right_half((int)w/2 + 1, 0, w - (int)w/2 - 1, h); 
-      
-      Mat left(subsample, left_half);
-      Mat right(subsample, right_half);
-      showim("left", left);
-      showim("right", right);
-
-      cv::MatND left_hist, right_hist;
-	cv::calcHist(&left, 1, 0, Mat(), left_hist, 1, &hist_size, ranges, true, false);
-	cv::calcHist(&right, 1, 0, Mat(), right_hist, 1, &hist_size, ranges, true, false);
-
-      bool left_has_text = displayHistogram(left_hist, "left_hist");
-      bool right_has_text = displayHistogram(right_hist, "right_hist");
-*/
 }
 
 
@@ -477,65 +509,85 @@ void FindBoxByLabel::preprocessForOCR(Mat subsample) {
 void FindBoxByLabel::locateBestFieldMatch(int best_ind) {  
       // Find center of textbox label
       Rect label_box = candidate_boxes[best_ind];
-      Point label_center, field_center;
-      label_center.x = label_box.x + label_box.width/2;
-      label_center.y = label_box.y + label_box.height/2;
-      
-      int height;
+      Point label_ref, field_ref;
+      label_ref.x = label_box.x + label_box.width/2;
+      label_ref.y = label_box.y + label_box.height/2;
+
+      // Allows for extension of text field box slightly above or to the left of label
+      int location_tol = label_box.height/2;
+      // Max proportion of label box area that can intersect with text field box
+      // (prevents cases where "closest" rectangle actually encompasses the label
+      double intersect_tol = 0.15;
+
+      Rect intersect;
+      Point diff;
       int matching_field_ind = -1;
-      float x_dist;
-      float y_dist;
-      float best_dist = 9999999;
+      float dist;
+      float best_dist = 999999999;
       // Find the closest rectangle to the center of the label
       // excluding those rectangles to the left or above the label
-      for (int i = 0; i < rectangles.size(); i++) {
-            field_center.x = rectangles[i].x + rectangles[i].width/2;
-            field_center.y = rectangles[i].y + rectangles[i].height/2;
-            height = rectangles[i].height;
-
-            x_dist = field_center.x - label_center.x;
-            y_dist = field_center.y - label_center.y;
-            if (x_dist > -1*height && y_dist > -1*height) {
-                  if ( (rectangles[i].x > label_box.x+label_box.width) ||
-                       (rectangles[i].y > label_box.y+label_box.height) ) {
-                        if ( x_dist*x_dist + y_dist*y_dist < best_dist ) {
-                              best_dist = x_dist*x_dist + y_dist*y_dist;
-                              matching_field_ind = i;
-                        }
-                  }
-            }
-      }      
-
       
+      bool condition;
+      for (int i = 0; i < rectangles.size(); i++) {
+            field_ref.x = rectangles[i].x;
+            field_ref.y = rectangles[i].y + rectangles[i].height/2;
+            intersect = rectangles[i] & label_box;
+
+            if (object_id == 0) {
+                  condition = (field_ref.x > label_box.x - location_tol) && \
+                              (field_ref.y > label_box.y - location_tol) && \
+                              ((double)intersect.area() < intersect_tol*label_box.area()); 
+            } else if (object_id == 1) {
+                  condition = (field_ref.y > label_box.y - location_tol); 
+            }
+
+            if (condition) {
+                  diff = label_ref - field_ref;
+                  dist = 0.5*diff.x*diff.x + 10*diff.y*diff.y;
+                  if (dist < best_dist) {
+                        best_dist = dist;
+                        matching_field_ind = i;
+                  }       
+            }
+      }
+
+      // Boxes the corresponding text field in red
+      cv::rectangle(match_img, rectangles[matching_field_ind], CV_RGB(255,0,0), 2);
+
       int x = rectangles[matching_field_ind].x;
       int y = rectangles[matching_field_ind].y;
       int w = rectangles[matching_field_ind].width;
       int h = rectangles[matching_field_ind].height;
-
+      
       int x0, y0;
       vector<int> matched_text_inds;
-      // Return all text in the optimal rectangle
-      for (int i = 0; i < candidate_boxes.size(); i++) {
-            x0 = candidate_boxes[i].x + candidate_boxes[i].width/2;
-            y0 = candidate_boxes[i].y + candidate_boxes[i].height/2;
-            // If the text field is completely within the optimal box
-            if ( x < x0 && x0 < x+w && y < y0 && y0 < y+h )
+      // Return all text in the optimal text field rectangle
+      cout << "Text fields corresponding to given label:" << endl;
+      for (int i = 0; i < valid_boxes.size(); i++) {
+            x0 = valid_boxes[i].x + valid_boxes[i].width/2;
+            y0 = valid_boxes[i].y + valid_boxes[i].height/2;
+            // If the text field center is within the matched rectangle
+            if ( x < x0 && x0 < x+w && y < y0 && y0 < y+h ) {
                   matched_text_inds.push_back(i);
+                  cout << "INDEX: " << i << endl;
+                  cout << matched_text[i] << endl;
+                  // Boxes all text within the textbox's rectangle in blue
+                  cv::rectangle(match_img, valid_boxes[i], CV_RGB(0,0,255), 2);
+            }
       }
-
-      cout << "Text field corresponding to given label:" << endl;
-      for (int i : matched_text_inds) {
-            cout << matched_text[i] << endl;
-            cv::rectangle(match_img, candidate_boxes[i], CV_RGB(255,0,0), 2);
-      }
+      
       showim("Found label and text field", match_img);
       cv::imwrite("match.png", match_img);
 }
 
+// Public interface
 void FindBoxByLabel::findBoxByLabel() {
+tic();
+      // Finds gradient of input image and groups resulting components
+      // into sets based on their proximity to one another
       findComponentCenters();
       groupConnectedComponents();
-      
+
       // For each of the candidate text regions
       for (int i = 0; i < candidate_boxes.size(); i++) {
             // Sample a text region from original screen and grayscale
@@ -544,42 +596,45 @@ void FindBoxByLabel::findBoxByLabel() {
             
             // Use histogram to determine if subsample has text
             bool is_text = filterByHistogram(subsample);
-            
-            if (is_text) {
+
+            // If statement enacts histogram filtering
+            // Might not be necessary for small windows, as these typically have few
+            // captured elements that aren't text
+//            if (is_text) {
                   // Proceed with histogram-based segmentation and OCR
                   calculateHistogramExtrema(subsample);
                   preprocessForOCR(subsample);
                   char* found_text = callTesseract(preprocessed_text_img);
-                  string text_str = found_text;
+                  string text_str = found_text;             // Convert char* to string
                   std::transform(text_str.begin(), text_str.end(), text_str.begin(), ::tolower);
                   matched_text.push_back(text_str);
+                  valid_boxes.push_back(candidate_boxes[i]);
                   
-                  // Calculate the greatest common substring between Tesseract output
+                  // Calculate the Levenshtein distance between Tesseract output
                   // and the user input
-                  // Only keep that score if it's larger than all previously calculated scores
-                  curr_score = lcSubStr(queried_label, text_str);
-                  if (curr_score > best_score) {
+                  // Only keep that score if it's smaller than all previously calculated scores
+                  curr_score = levenshteinDistance(queried_label, text_str);
+                  if (curr_score < best_score) {
                         best_score = curr_score;
                         best_ind = i;
-                        best_match = found_text;
+                        best_match = found_text;				
                   }
-            
                   cv::rectangle(group_img, candidate_boxes[i], CV_RGB(0,255,0), 2);
-            }
-            else cv::rectangle(group_img, candidate_boxes[i], CV_RGB(255,0,0), 2);
+//            }
+//            else cv::rectangle(group_img, candidate_boxes[i], CV_RGB(255,0,0), 2);
       }
 
 	cout << "Query label:        " << queried_label << endl;
-	cout << "Matched label:   " << best_match << endl;
-	
-      cv::rectangle(match_img, candidate_boxes[best_ind], CV_RGB(0,255,0), 2);
+      cout << "Best match:       " << best_match << endl;
+      // Highlights the matched label in green 
+	cv::rectangle(match_img, candidate_boxes[best_ind], CV_RGB(0,255,0), 2);
 
 	// Display bounding boxes of groups
 	showim("Candidate groups", group_img);
       cv::imwrite("groups.png", group_img);    
 
-      preprocessImgForRectFinder(rectangle_img);
-      findRectangles(rectangle_img, rectangles);
+      findRectangles(rectangle_img, rectangles, object_id);
       drawRectangles(rect_display, rectangles);
       locateBestFieldMatch(best_ind);
+toc();
 }
